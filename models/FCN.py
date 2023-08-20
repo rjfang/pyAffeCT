@@ -1,0 +1,78 @@
+# -*- coding: utf-8 -*-
+"""
+MIT License
+
+Copyright (c) 2023 rjfang
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+"""
+
+
+import os
+import numpy as np
+import pandas as pd
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.utils.data as data
+
+from pyAffeCT.models import BaseModel
+
+class FCN(BaseModel):
+    """
+    This is an implementation of fully convolutional neural networks.
+    It has three convolution layers with a batchnormalization layer and relu layer 
+    following each convolutional layer.
+    The number of channels starts with input shape - 128 - 256 - 128 - 1
+    The third convolutional layer is connected with an adaptive average pooling layer.
+    Then, a fully connected layer connect 128 features to number of classes.
+    
+    """
+    def __init__(self, input_shape, num_classes):
+
+        super().__init__(input_shape, num_classes)
+        
+        self.conv1 = nn.Conv1d(in_channels=input_shape[1], out_channels=128, kernel_size=8, padding=4)
+        self.bn1 = nn.BatchNorm1d(num_features=128)
+        self.relu1 = nn.ReLU()
+        
+        self.conv2 = nn.Conv1d(in_channels=128, out_channels=256, kernel_size=5, padding=2)
+        self.bn2 = nn.BatchNorm1d(num_features=256)
+        self.relu2 = nn.ReLU()
+        
+        self.conv3 = nn.Conv1d(in_channels=256, out_channels=128, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm1d(num_features=128)
+        self.relu3 = nn.ReLU()
+        
+        self.gap = nn.AdaptiveAvgPool1d(output_size=1)
+        
+        self.fc = nn.Linear(in_features=128, out_features=num_classes)
+        self.softmax = nn.Softmax(dim=1)
+        
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu1(x)
+        
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu2(x)
+        
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.relu3(x)
+        
+        x = self.gap(x)
+        x = x.view(x.size(0), -1)
+        
+        x = self.fc(x)
+        x = self.softmax(x)
+        
+        return x
